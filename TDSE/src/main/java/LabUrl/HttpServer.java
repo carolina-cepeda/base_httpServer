@@ -56,12 +56,14 @@ public class HttpServer {
             HttpResponse response = new HttpResponse();
 
             BiFunction<HttpRequest, HttpResponse, String> handler = routes.get(request.getPath());
-            if (handler != null) {
+            if (handler != null && "GET".equals(request.getMethod())) {
                 String body = handler.apply(request, response);
                 if (response.getBody() == null || response.getBody().isEmpty()) {
                     response.setBody(body);
                 }
                 response.send(out);
+            } else if (handler != null) {
+                sendError(out, 404, "Not Found");
             } else if (!staticFiles.serve(request.getPath(), response, out)) {
                 sendError(out, 404, "Not Found");
             }
