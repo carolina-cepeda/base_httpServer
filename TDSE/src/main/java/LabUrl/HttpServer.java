@@ -10,8 +10,10 @@ public class HttpServer {
     private static volatile boolean running = false;
 
     public static void start(int port,
-                             Map<String, BiFunction<HttpRequest, HttpResponse, String>> routes) throws IOException {
+                             Map<String, BiFunction<HttpRequest, HttpResponse, String>> routes,
+                             String staticFilesPath) throws IOException {
         running = true;
+        StaticFileHandler staticFiles = new StaticFileHandler(staticFilesPath);
 
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             serverSocket.setReuseAddress(true);
@@ -22,7 +24,7 @@ public class HttpServer {
                      InputStream in = clientSocket.getInputStream();
                      OutputStream out = clientSocket.getOutputStream()) {
 
-                    handleRequest(in, out, routes);
+                    handleRequest(in, out, routes, staticFiles);
                 } catch (IOException e) {
                     if (running) System.err.println("Client error: " + e.getMessage());
                 }
@@ -35,8 +37,9 @@ public class HttpServer {
         running = false;
     }
 
-    private static void handleRequest(InputStream in, OutputStream out,
-                                      Map<String, BiFunction<HttpRequest, HttpResponse, String>> routes) {
+    static void handleRequest(InputStream in, OutputStream out,
+                              Map<String, BiFunction<HttpRequest, HttpResponse, String>> routes,
+                              StaticFileHandler staticFiles) {
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(in));
             String requestLine = reader.readLine();
@@ -59,7 +62,7 @@ public class HttpServer {
                     response.setBody(body);
                 }
                 response.send(out);
-            } else {
+            } else if (!staticFiles.serve(request.getPath(), response, out)) {
                 sendError(out, 404, "Not Found");
             }
         } catch (Exception e) {

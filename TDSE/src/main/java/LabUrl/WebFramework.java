@@ -24,7 +24,7 @@ public final class WebFramework {
     }
 
     public static void start(int port) throws IOException {
-        HttpServer.start(port, routes);
+        HttpServer.start(port, routes, staticFilesPath);
     }
 
     public static void stop() {
