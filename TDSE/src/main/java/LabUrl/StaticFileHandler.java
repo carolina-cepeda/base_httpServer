@@ -3,28 +3,40 @@ package LabUrl;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Locale;
 
 final class StaticFileHandler {
     private final String resourceBasePath;
+    private final Path externalBaseDirectory;
 
     StaticFileHandler(String staticFilesPath) {
         this.resourceBasePath = normalizeBasePath(staticFilesPath);
+        this.externalBaseDirectory = null;
+    }
+
+    private StaticFileHandler(Path externalBaseDirectory) {
+        this.resourceBasePath = null;
+        this.externalBaseDirectory = externalBaseDirectory;
+    }
+
+    static StaticFileHandler fromExternalDirectory(Path configuredDirectory) throws IOException {
+        if (!Files.isDirectory(configuredDirectory) || !Files.isReadable(configuredDirectory)) {
+            throw new IOException("STATIC_FILES_PATH must be a readable directory: " + configuredDirectory);
+        }
+        return new StaticFileHandler(configuredDirectory.toRealPath());
     }
 
     boolean serve(String requestPath, HttpResponse response, OutputStream out) throws IOException {
-        String resourcePath = resolveResourcePath(requestPath);
-        if (resourcePath == null) {
+        String relativePath = resolveRelativePath(requestPath);
+        if (relativePath == null) {
             return false;
         }
 
-        try (InputStream resource = StaticFileHandler.class.getClassLoader().getResourceAsStream(resourcePath)) {
-            if (resource == null) {
-                return false;
-            }
-            response.contentType(contentTypeFor(resourcePath)).send(out, resource);
-            return true;
-        }
+        return externalBaseDirectory == null
+                ? serveClasspathResource(relativePath, response, out)
+                : serveExternalResource(relativePath, response, out);
     }
 
     static String contentTypeFor(String resourcePath) {
@@ -42,7 +54,35 @@ final class StaticFileHandler {
         return "application/octet-stream";
     }
 
-    private String resolveResourcePath(String requestPath) {
+    private boolean serveClasspathResource(String relativePath, HttpResponse response, OutputStream out) throws IOException {
+        String resourcePath = resourceBasePath.isEmpty() ? relativePath : resourceBasePath + "/" + relativePath;
+        try (InputStream resource = StaticFileHandler.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (resource == null) {
+                return false;
+            }
+            response.contentType(contentTypeFor(resourcePath)).send(out, resource);
+            return true;
+        }
+    }
+
+    private boolean serveExternalResource(String relativePath, HttpResponse response, OutputStream out) throws IOException {
+        Path candidate = externalBaseDirectory.resolve(relativePath).normalize();
+        if (!candidate.startsWith(externalBaseDirectory) || !Files.isRegularFile(candidate) || !Files.isReadable(candidate)) {
+            return false;
+        }
+
+        Path realFile = candidate.toRealPath();
+        if (!realFile.startsWith(externalBaseDirectory)) {
+            return false;
+        }
+
+        try (InputStream resource = Files.newInputStream(realFile)) {
+            response.contentType(contentTypeFor(relativePath)).send(out, resource);
+            return true;
+        }
+    }
+
+    private String resolveRelativePath(String requestPath) {
         if (requestPath == null || !requestPath.startsWith("/")) {
             return null;
         }
@@ -58,7 +98,7 @@ final class StaticFileHandler {
             }
         }
 
-        return resourceBasePath.isEmpty() ? relativePath : resourceBasePath + "/" + relativePath;
+        return relativePath;
     }
 
     private static String normalizeBasePath(String staticFilesPath) {

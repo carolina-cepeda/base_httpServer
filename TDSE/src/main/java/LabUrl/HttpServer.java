@@ -1,6 +1,8 @@
 package LabUrl;
 
 import java.io.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
@@ -11,12 +13,12 @@ public class HttpServer {
 
     public static void start(int port,
                              Map<String, BiFunction<HttpRequest, HttpResponse, String>> routes,
-                             String staticFilesPath) throws IOException {
+                             StaticFileHandler staticFiles) throws IOException {
         running = true;
-        StaticFileHandler staticFiles = new StaticFileHandler(staticFilesPath);
 
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
+        try (ServerSocket serverSocket = new ServerSocket()) {
             serverSocket.setReuseAddress(true);
+            serverSocket.bind(new InetSocketAddress(InetAddress.getByName("0.0.0.0"), port));
             System.out.println("Server started on port " + port + " (0.0.0.0)");
 
             while (running) {
