@@ -79,16 +79,40 @@ class StaticFileHandlerTest {
     }
 
     @Test
+    void servesStaticResourcesAfterRouteMiss() {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        HttpServer.handleRequest(request("GET", "/styles.css"), output, Map.of(), new StaticFileHandler("/webroot"));
+
+        assertTrue(responseText(output).contains("Content-Type: text/css"));
+        assertTrue(responseText(output).endsWith("body { color: #123456; }\n"));
+    }
+
+    @Test
+    void doesNotServeStaticResourcesForNonGetRequests() {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        HttpServer.handleRequest(request("POST", "/styles.css"), output, Map.of(), new StaticFileHandler("/webroot"));
+
+        assertTrue(responseText(output).startsWith("HTTP/1.1 404 Not Found"));
+        assertFalse(responseText(output).contains("body { color: #123456; }"));
+    }
+
+    @Test
     void returns404WhenNoRouteOrResourceMatches() {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
 
-        HttpServer.handleRequest(request("/missing.css"), output, Map.of(), new StaticFileHandler("/webroot"));
+        HttpServer.handleRequest(request("GET", "/missing.css"), output, Map.of(), new StaticFileHandler("/webroot"));
 
         assertTrue(responseText(output).startsWith("HTTP/1.1 404 Not Found"));
     }
 
     private static ByteArrayInputStream request(String path) {
-        String request = "GET " + path + " HTTP/1.1\r\nHost: test\r\n\r\n";
+        return request("GET", path);
+    }
+
+    private static ByteArrayInputStream request(String method, String path) {
+        String request = method + " " + path + " HTTP/1.1\r\nHost: test\r\n\r\n";
         return new ByteArrayInputStream(request.getBytes(StandardCharsets.ISO_8859_1));
     }
 

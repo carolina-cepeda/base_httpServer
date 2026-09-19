@@ -53,17 +53,20 @@ public class HttpServer {
             String line;
             while ((line = reader.readLine()) != null && !line.isBlank()) {}
 
+            if (!"GET".equals(request.getMethod())) {
+                sendError(out, 404, "Not Found");
+                return;
+            }
+
             HttpResponse response = new HttpResponse();
 
             BiFunction<HttpRequest, HttpResponse, String> handler = routes.get(request.getPath());
-            if (handler != null && "GET".equals(request.getMethod())) {
+            if (handler != null) {
                 String body = handler.apply(request, response);
                 if (response.getBody() == null || response.getBody().isEmpty()) {
                     response.setBody(body);
                 }
                 response.send(out);
-            } else if (handler != null) {
-                sendError(out, 404, "Not Found");
             } else if (!staticFiles.serve(request.getPath(), response, out)) {
                 sendError(out, 404, "Not Found");
             }
