@@ -22,7 +22,7 @@ class StaticFileHandlerTest {
 
         assertTrue(served);
         assertTrue(responseText(output).contains("Content-Type: text/html"));
-        assertTrue(responseText(output).endsWith("<h1>Static home</h1>\n"));
+        assertTrue(responseText(output).contains("LabUrl Framework Demo"));
     }
 
     @Test
@@ -85,7 +85,23 @@ class StaticFileHandlerTest {
         HttpServer.handleRequest(request("GET", "/styles.css"), output, Map.of(), new StaticFileHandler("/webroot"));
 
         assertTrue(responseText(output).contains("Content-Type: text/css"));
-        assertTrue(responseText(output).endsWith("body { color: #123456; }\n"));
+        assertTrue(responseText(output).contains(".page-shell"));
+    }
+
+    @Test
+    void servesTheDemoLogoAsPng() throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+
+        boolean served = new StaticFileHandler("/webroot").serve("/img/logo.png", new HttpResponse(), output);
+
+        byte[] response = output.toByteArray();
+        int bodyStart = responseText(output).indexOf("\r\n\r\n") + 4;
+        assertTrue(served);
+        assertTrue(responseText(output).contains("Content-Type: image/png"));
+        assertEquals((byte) 0x89, response[bodyStart]);
+        assertEquals((byte) 0x50, response[bodyStart + 1]);
+        assertEquals((byte) 0x4e, response[bodyStart + 2]);
+        assertEquals((byte) 0x47, response[bodyStart + 3]);
     }
 
     @Test
