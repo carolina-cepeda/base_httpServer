@@ -63,6 +63,21 @@ class HttpServerRobustnessTest {
         assertCompleteHeaders(response);
     }
 
+    @Test
+    void completesShutdownResponseBeforeStoppingTheSequentialServer() throws Exception {
+        Map<String, BiFunction<HttpRequest, HttpResponse, String>> routes = Map.of(
+                "/shutdown", (request, response) -> {
+                    HttpServer.stop();
+                    return "Server will stop after this response.";
+                });
+
+        String response = responseFor("GET /shutdown HTTP/1.1", routes);
+
+        assertTrue(response.startsWith("HTTP/1.1 200 OK"));
+        assertTrue(response.endsWith("Server will stop after this response."));
+        assertCompleteHeaders(response);
+    }
+
     private static void assertBadRequest(String requestLine) {
         String response = responseFor(requestLine, Map.of());
 

@@ -36,6 +36,10 @@ public class HttpServer {
         System.out.println("Server stopped gracefully.");
     }
 
+    /**
+     * Requests a graceful shutdown. The active sequential request is allowed to
+     * finish sending its response before the accept loop exits.
+     */
     public static void stop() {
         running = false;
     }
