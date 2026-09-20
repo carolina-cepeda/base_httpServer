@@ -3,6 +3,8 @@ package LabUrl;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -56,11 +58,14 @@ final class StaticFileHandler {
 
     private boolean serveClasspathResource(String relativePath, HttpResponse response, OutputStream out) throws IOException {
         String resourcePath = resourceBasePath.isEmpty() ? relativePath : resourceBasePath + "/" + relativePath;
-        try (InputStream resource = StaticFileHandler.class.getClassLoader().getResourceAsStream(resourcePath)) {
-            if (resource == null) {
-                return false;
-            }
-            response.contentType(contentTypeFor(resourcePath)).send(out, resource);
+        URL resourceUrl = StaticFileHandler.class.getClassLoader().getResource(resourcePath);
+        if (resourceUrl == null) {
+            return false;
+        }
+
+        URLConnection connection = resourceUrl.openConnection();
+        try (InputStream resource = connection.getInputStream()) {
+            response.contentType(contentTypeFor(resourcePath)).send(out, resource, connection.getContentLengthLong());
             return true;
         }
     }
@@ -77,7 +82,7 @@ final class StaticFileHandler {
         }
 
         try (InputStream resource = Files.newInputStream(realFile)) {
-            response.contentType(contentTypeFor(relativePath)).send(out, resource);
+            response.contentType(contentTypeFor(relativePath)).send(out, resource, Files.size(realFile));
             return true;
         }
     }

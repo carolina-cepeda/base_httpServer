@@ -13,10 +13,27 @@ public class HttpRequest {
     private final Map<String, String> queryParams = new HashMap<>();
 
     public HttpRequest(String requestLine) throws URISyntaxException {
-        String[] parts = requestLine.split(" ");
+        if (requestLine == null) {
+            throw new IllegalArgumentException("Request line is required");
+        }
+
+        String[] parts = requestLine.split(" ", -1);
+        if (parts.length != 3 || parts[0].isBlank() || parts[1].isBlank() || parts[2].isBlank()) {
+            throw new IllegalArgumentException("Malformed request line");
+        }
+        if (!parts[0].matches("[A-Z]+") || !"HTTP/1.1".equals(parts[2])) {
+            throw new IllegalArgumentException("Unsupported request line");
+        }
+        if (!parts[1].startsWith("/")) {
+            throw new IllegalArgumentException("Request target must be an origin-form path");
+        }
+
         this.method = parts[0];
 
         URI uri = new URI(parts[1]);
+        if (uri.isAbsolute() || uri.getRawAuthority() != null || uri.getPath() == null || uri.getPath().isBlank()) {
+            throw new IllegalArgumentException("Invalid request target");
+        }
         this.path = uri.getPath();
         parseQuery(uri.getRawQuery());
     }

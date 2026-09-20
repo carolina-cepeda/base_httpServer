@@ -5,6 +5,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -43,14 +44,20 @@ public class HttpServer {
                               Map<String, BiFunction<HttpRequest, HttpResponse, String>> routes,
                               StaticFileHandler staticFiles) {
         try {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+            BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.ISO_8859_1));
             String requestLine = reader.readLine();
             if (requestLine == null || requestLine.isBlank()) {
                 sendError(out, 400, "Bad Request");
                 return;
             }
 
-            HttpRequest request = new HttpRequest(requestLine);
+            HttpRequest request;
+            try {
+                request = new HttpRequest(requestLine);
+            } catch (IllegalArgumentException | java.net.URISyntaxException exception) {
+                sendError(out, 400, "Bad Request");
+                return;
+            }
 
             String line;
             while ((line = reader.readLine()) != null && !line.isBlank()) {}
@@ -72,8 +79,8 @@ public class HttpServer {
             } else if (!staticFiles.serve(request.getPath(), response, out)) {
                 sendError(out, 404, "Not Found");
             }
-        } catch (Exception e) {
-            sendError(out, 500, "Internal Server Error");
+        } catch (Exception exception) {
+            sendInternalServerError(out, exception);
         }
     }
 
@@ -81,5 +88,14 @@ public class HttpServer {
         try {
             new HttpResponse().status(status).body(message).send(out);
         } catch (Exception ignored) {}
+    }
+
+    private static void sendInternalServerError(OutputStream out, Exception exception) {
+        System.err.println("Request failed: " + exception);
+        String detail = exception.getMessage();
+        String message = detail == null || detail.isBlank()
+                ? "Internal Server Error"
+                : "Internal Server Error: " + detail;
+        sendError(out, 500, message);
     }
 }
