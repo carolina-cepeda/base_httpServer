@@ -100,35 +100,100 @@ None of the configured variables is a secret. Do not place credentials, tokens, 
 The application is deployed on an Amazon EC2 instance running Amazon Linux 2023 and Amazon Corretto Java 17. The packaged artifact is `/home/ec2-user/TDSE-1.0.jar`, and the `laburl` systemd service starts it with `PORT=8080` and `APP_ENV=production`.
 
 - **Cloud platform:** Amazon Web Services (AWS) EC2
-- **Public deployment URL:** <http://18.215.173.209:8080/>
+- **Public deployment URL:** <http://34.199.13.83:8080/>
+- **Public IP:** Elastic IP `34.199.13.83`, associated with the EC2 instance
 - **Runtime:** Java 17 (Amazon Corretto)
 - **Service management:** `systemd` service named `laburl`, enabled to start at boot
 - **Public network access:** EC2 security-group inbound rule for TCP port `8080`
 
+The associated Elastic IP remains the same through normal EC2 stop/start cycles while it stays allocated and associated with this instance. A Learner Lab reset or policy can still stop resources or remove access.
+
 The deployed production routes are:
 
 ```text
-http://18.215.173.209:8080/
-http://18.215.173.209:8080/styles.css
-http://18.215.173.209:8080/img/logo.png
-http://18.215.173.209:8080/hello?name=Ada
-http://18.215.173.209:8080/pi
-http://18.215.173.209:8080/shutdown       # returns 404 in production
+http://34.199.13.83:8080/
+http://34.199.13.83:8080/styles.css
+http://34.199.13.83:8080/img/logo.png
+http://34.199.13.83:8080/hello?name=Ada
+http://34.199.13.83:8080/pi
+http://34.199.13.83:8080/shutdown       # returns 404 in production
 ```
+
+### Reproduce the AWS EC2 deployment
+
+1. Build the JAR locally from the repository root:
+
+   ```bash
+   cd TDSE
+   mvn clean package
+   ```
+
+2. Launch an Amazon Linux 2023 EC2 instance with a key pair and a public IPv4 address. Its security group must permit SSH (TCP `22`) from the administrator's IP address and HTTP application traffic on TCP `8080`.
+
+3. In the EC2 console, allocate an Elastic IP in the same Region and associate it with the instance. Use this stable address as `ELASTIC_IP` in the following commands.
+
+4. Connect to the instance and install Java 17:
+
+   ```bash
+   ssh -i /path/to/key.pem ec2-user@ELASTIC_IP
+   sudo dnf install -y java-17-amazon-corretto-headless
+   ```
+
+5. From the local machine, copy the built JAR to the EC2 user's home directory:
+
+   ```bash
+   scp -i /path/to/key.pem TDSE/target/TDSE-1.0.jar \
+     ec2-user@ELASTIC_IP:/home/ec2-user/
+   ```
+
+6. On EC2, create `/etc/systemd/system/laburl.service` with the following content:
+
+   ```ini
+   [Unit]
+   Description=LabUrl Java HTTP Server
+   After=network.target
+
+   [Service]
+   Type=simple
+   User=ec2-user
+   WorkingDirectory=/home/ec2-user
+   Environment=PORT=8080
+   Environment=APP_ENV=production
+   Environment=GREETING_PREFIX=Hello
+   ExecStart=/usr/bin/java -cp /home/ec2-user/TDSE-1.0.jar LabUrl.Application
+   Restart=on-failure
+   RestartSec=5
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+7. Enable and verify the service:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now laburl
+   sudo systemctl status laburl
+   curl -i http://localhost:8080/
+   ```
 
 ### Deployment evidence
 
 All deployment captures are stored in [`docs/imgs/`](docs/imgs/). The images below show the EC2 instance, the persistent service, and the public HTTP responses.
 
-#### EC2 instance and service
-
-![EC2 instance running](docs/imgs/ec2-running.png)
+#### EC2 service
 
 ![LabUrl systemd service running](docs/imgs/daemon_functioning.png)
 
+#### Production environment configuration
+
+The service has no secrets in its environment configuration. The following capture shows the configured port, production environment, and greeting prefix.
+
+![Production environment variables](docs/imgs/environment_prod.png)
+
 #### Public application and endpoints
 
-![Public HTTP response](docs/imgs/screenshot_httpTest.png)
+![Public application served through the Elastic IP](docs/imgs/elastic_ip.png)
 
 ![Static CSS resource response](docs/imgs/styles.png)
 
